@@ -1,0 +1,204 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.graph_objects as go
+import matplotlib.patches as mpatches
+from plotly.subplots import make_subplots
+from wordcloud import WordCloud
+import seaborn as sns  
+sns.set(color_codes = True)
+sns.set(style="whitegrid")
+import plotly.figure_factory as ff
+from plotly.colors import n_colors
+df = pd.read_csv('covid-world-vaccination-progress/country_vaccinations.csv')
+df.head()
+df.info()
+df.isnull().sum()
+df.fillna(value = 0, inplace = True)
+df.total_vaccinations = df.total_vaccinations.astype(int)
+df.people_vaccinated = df.people_vaccinated.astype(int)
+df.people_fully_vaccinated = df.people_fully_vaccinated.astype(int)
+df.daily_vaccinations_raw = df.daily_vaccinations_raw.astype(int)
+df.daily_vaccinations = df.daily_vaccinations.astype(int)
+df.total_vaccinations_per_hundred = df.total_vaccinations_per_hundred.astype(int)
+df.people_fully_vaccinated_per_hundred = df.people_fully_vaccinated_per_hundred.astype(int)
+df.daily_vaccinations_per_million = df.daily_vaccinations_per_million.astype(int)
+df.people_vaccinated_per_hundred = df.people_vaccinated_per_hundred.astype(int)
+date = df.date.str.split('-', expand =True)
+date
+df['year'] = date[0]
+df['month'] = date[1]
+df['day'] = date[2]
+df.year = pd.to_numeric(df.year)
+df.month = pd.to_numeric(df.month)
+df.day = pd.to_numeric(df.day)
+df.date = pd.to_datetime(df.date)
+df.head()
+print('Data point starts from ',df.date.min(),'n')
+print('Data point ends at ',df.date.max(),'n')
+print('Total no of countries in the data set ',len(df.country.unique()),'n')
+print('Total no of unique vaccines in the data set ',len(df.vaccines.unique()),'n')
+df.info()
+df.describe()
+df.country.unique()
+def size(m,n):
+    fig = plt.gcf();
+    fig.set_size_inches(m,n);
+wordCloud = WordCloud(
+    background_color='white',
+    max_font_size = 50).generate(' '.join(df.country))
+plt.figure(figsize=(15,7))
+plt.axis('off')
+plt.imshow(wordCloud)
+country_wise_total_vaccinated = {}
+for country in df.country.unique() : 
+    vaccinated = 0
+    for i in range(len(df)) : 
+        if df.country[i] == country : 
+            vaccinated += df.daily_vaccinations[i]
+    country_wise_total_vaccinated[country] = vaccinated 
+#     made a seperate dict from the df 
+    country_wise_total_vaccinated_df = pd.DataFrame.from_dict(country_wise_total_vaccinated,
+                                                         orient='index',
+                                                         columns = ['total_vaccinted_till_date'])
+#     converted dict to df 
+country_wise_total_vaccinated_df.sort_values(by = 'total_vaccinted_till_date', ascending = False, inplace = True)
+country_wise_total_vaccinated_df
+plt.show()
+fig = px.bar(country_wise_total_vaccinated_df, 
+             y = 'total_vaccinted_till_date',
+             x = country_wise_total_vaccinated_df.index,
+             color = 'total_vaccinted_till_date',
+             color_discrete_sequence= px.colors.sequential.Viridis_r
+            )
+fig.update_layout(
+    title={
+            'text' : "Vaccination till date in various countries",
+            'y':0.95,
+            'x':0.5
+        },
+    xaxis_title="Countries",
+    yaxis_title="Total vaccinated",
+    legend_title="Total vaccinated"
+)
+fig.show()
+fig = px.line(df, x = 'date', y ='daily_vaccinations', color = 'country')
+fig.update_layout(
+    title={
+            'text' : "Daily vaccination trend",
+            'y':0.95,
+            'x':0.5
+        },
+    xaxis_title="Date",
+    yaxis_title="Daily Vaccinations"
+)
+fig.show()
+# helper function
+def plot_till_date(value1, value2, title, color1, color2) : 
+    so_far_dict = {}
+    for dates in df.date.unique() : 
+        so_far_dict[dates], value1_count, value2_count = [], 0, 0
+        for i in range(len(df)) : 
+            if df.date[i] == dates : 
+                value1_count += df[value1][i]
+                value2_count += df[value2][i]
+#         if dates not in so_far_dict.keys() : 
+        so_far_dict[dates].append(value1_count) 
+        so_far_dict[dates].append(value2_count)
+    so_far_df = pd.DataFrame.from_dict(so_far_dict, orient = 'index', columns=[value1, value2])
+    so_far_df.reset_index(inplace = True)
+#     return so_far_df
+    so_far_df.sort_values(by='index', inplace = True)
+    plot = go.Figure(data=[go.Scatter( 
+            x = so_far_df['index'], 
+            y = so_far_df[value1], 
+            stackgroup='one', 
+            name = value1, 
+            marker_color= color1), 
+                           go.Scatter( 
+            x = so_far_df['index'], 
+            y = so_far_df[value2], 
+            stackgroup='one',
+            name = value2, 
+            marker_color= color2) 
+        ]) 
+    plot.update_layout(
+    title={
+            'text' : title,
+            'y':0.95,
+            'x':0.5
+        },
+        xaxis_title="Date"
+    )
+    return plot.show()
+plot_till_date('people_fully_vaccinated', 'people_vaccinated','People vaccinated vs Fully vaccinated till date', '#c4eb28', '#35eb28')
+plot_till_date('people_fully_vaccinated_per_hundred', 'people_vaccinated_per_hundred', 'People vaccinated vs Fully vaccinated per hundred till date', '#0938e3','#7127cc')
+def plot_pie(value, title, color) : 
+    new_dict = {}
+    for v in df[value].unique() : 
+        value_count = 0
+        for i in range(len(df)) : 
+            if df[value][i] == v : 
+                value_count += 1 
+        new_dict[v] = value_count 
+#     print(new_dict)
+    new_df = pd.DataFrame.from_dict(new_dict, orient = 'index', columns = ['Total'])
+    if color == 'plasma' : 
+        fig = px.pie(new_df, values= 'Total',
+                     names = new_df.index,
+                     title = title,
+                     color_discrete_sequence=px.colors.sequential.Plasma)
+    elif color == 'rainbow' : 
+        fig = px.pie(new_df, values= 'Total',
+                     names = new_df.index,
+                     title = title,
+                     color_discrete_sequence=px.colors.sequential.Rainbow)
+    else :
+        fig = px.pie(new_df, values= 'Total',
+                     names = new_df.index,
+                     title = title)
+    fig.update_layout(
+        title={
+            'y':0.95,
+            'x':0.5
+        },
+        legend_title = value
+    )
+    return fig.show()
+    plot_pie('vaccines', 'Various vaccines and their uses', 'plasma')
+df.vaccines.unique()
+wordCloud = WordCloud(
+    background_color='white',
+    max_font_size = 50).generate(' '.join(df.vaccines))
+plt.figure(figsize=(12,5))
+plt.axis('off')
+plt.imshow(wordCloud)
+plt.show()
+fig = px.line(df, x = 'date', y ='daily_vaccinations_per_million', color = 'country')
+fig.update_layout(
+    title=
+            'text' : "Daily vaccination trend per million",
+            'y':0.95,
+            'x':0.5
+        },
+    xaxis_title="Date",
+    yaxis_title="Daily Vaccinations per million"
+)
+fig.show()
+india_usa = [df[df.country == 'United States'], df[df.country == 'India']]
+result = pd.concat(india_usa)
+fig = px.line(result, x = 'date', y ='total_vaccinations', color = 'country')
+fig.update_layout(
+    title={
+            'text' : "Total vaccinated - India vs USA",
+            'y':0.95,
+            'x':0.5
+        },
+    xaxis_title="Date",
+    yaxis_title="Total Vaccinations"
+)
+fig.show()
+plot_map('total_vaccinations','Most vaccinated country', None)
+plot_map('vaccines','Vaccines Used in Different countries', None)
+plot_map('people_fully_vaccinated','People fully vaccinated in Different countries', 'haline')
